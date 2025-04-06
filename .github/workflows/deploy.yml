@@ -32,7 +32,7 @@ jobs:
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
-          role-to-assume: arn:aws:iam::739275478105:role/github-actions-ecs-deploy-role
+          role-to-assume: arn:aws:iam::739275478105:role/your-gh-actions-role  # Make sure this IAM role is set up properly for OIDC
           role-session-name: github-actions-session
           aws-region: ${{ env.AWS_REGION }}
 
@@ -58,26 +58,34 @@ jobs:
           docker tag $ECR_REPO_STOREFRONT:latest $ECR_REGISTRY/$ECR_REPO_STOREFRONT:latest
           docker push $ECR_REGISTRY/$ECR_REPO_STOREFRONT:latest
 
-      - name: Deploy Backend Service
-        run: |
-          aws ecs update-service \
-            --cluster $ECS_CLUSTER \
-            --service $ECS_SERVICE_BACKEND \
-            --force-new-deployment \
-            --region $AWS_REGION
+      # - name: Deploy Backend Service
+      #   run: |
+      #     aws ecs update-service \
+      #       --cluster $ECS_CLUSTER \
+      #       --service $ECS_SERVICE_BACKEND \
+      #       --force-new-deployment \
+      #       --region $AWS_REGION
 
-      - name: Deploy Admin Service
-        run: |
-          aws ecs update-service \
-            --cluster $ECS_CLUSTER \
-            --service $ECS_SERVICE_ADMIN \
-            --force-new-deployment \
-            --region $AWS_REGION
+      # - name: Deploy Admin Service
+      #   run: |
+      #     aws ecs update-service \
+      #       --cluster $ECS_CLUSTER \
+      #       --service $ECS_SERVICE_ADMIN \
+      #       --force-new-deployment \
+      #       --region $AWS_REGION
 
-      - name: Deploy Storefront Service
+      # - name: Deploy Storefront Service
+      #   run: |
+      #     aws ecs update-service \
+      #       --cluster $ECS_CLUSTER \
+      #       --service $ECS_SERVICE_STOREFRONT \
+      #       --force-new-deployment \
+      #       --region $AWS_REGION
+
+      - name: Deploy Medusa Service
         run: |
           aws ecs update-service \
             --cluster $ECS_CLUSTER \
-            --service $ECS_SERVICE_STOREFRONT \
+            --service medusa-service \
             --force-new-deployment \
             --region $AWS_REGION
