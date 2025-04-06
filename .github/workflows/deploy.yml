@@ -32,7 +32,7 @@ jobs:
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
-          role-to-assume: arn:aws:iam::739275478105:role/your-gh-actions-role  # Make sure this IAM role is set up properly for OIDC
+          role-to-assume: arn:aws:iam::739275478105:role/github-actions-ecs-deploy-role
           role-session-name: github-actions-session
           aws-region: ${{ env.AWS_REGION }}
 
