@@ -63,24 +63,12 @@ jobs:
             --network-mode awsvpc \
             --cpu "256" --memory "512" \
             --execution-role-arn arn:aws:iam::739275478105:role/ecsTaskExecutionRole \
-            --container-definitions "[
-              {
-                \"name\": \"backend\",
-                \"image\": \"${ECR_REGISTRY}/${ECR_REPO_BACKEND}:latest\",
-                \"essential\": true,
-                \"portMappings\": [
-                  { \"containerPort\": 9000, \"hostPort\": 9000, \"protocol\": \"tcp\" }
-                ],
-                \"environment\": [
-                  {\"name\": \"DATABASE_URL\", \"value\": \"postgres://postgres:postgres@postgres:5432/medusa-docker\"},
-                  {\"name\": \"REDIS_URL\", \"value\": \"redis://cache\"},
-                  {\"name\": \"NODE_ENV\", \"value\": \"development\"},
-                  {\"name\": \"JWT_SECRET\", \"value\": \"some_jwt_secret\"},
-                  {\"name\": \"COOKIE_SECRET\", \"value\": \"some_cookie_secret\"},
-                  {\"name\": \"PORT\", \"value\": \"9000\"}
-                ]
-              }
-            ]" --query 'taskDefinition.taskDefinitionArn' --output text)
+            --container-definitions "[{
+              \"name\": \"backend\",
+              \"image\": \"${ECR_REGISTRY}/${ECR_REPO_BACKEND}:latest\",
+              \"essential\": true,
+              \"portMappings\": [{ \"containerPort\": 9000, \"hostPort\": 9000, \"protocol\": \"tcp\" }]
+            }]" --query 'taskDefinition.taskDefinitionArn' --output text)
 
           ADMIN_TASK=$(aws ecs register-task-definition \
             --family admin-task-def \
@@ -88,19 +76,12 @@ jobs:
             --network-mode awsvpc \
             --cpu "256" --memory "512" \
             --execution-role-arn arn:aws:iam::739275478105:role/ecsTaskExecutionRole \
-            --container-definitions "[
-              {
-                \"name\": \"admin\",
-                \"image\": \"${ECR_REGISTRY}/${ECR_REPO_ADMIN}:latest\",
-                \"essential\": true,
-                \"portMappings\": [
-                  { \"containerPort\": 7000, \"hostPort\": 7000, \"protocol\": \"tcp\" }
-                ],
-                \"environment\": [
-                  {\"name\": \"NODE_OPTIONS\", \"value\": \"--openssl-legacy-provider\"}
-                ]
-              }
-            ]" --query 'taskDefinition.taskDefinitionArn' --output text)
+            --container-definitions "[{
+              \"name\": \"admin\",
+              \"image\": \"${ECR_REGISTRY}/${ECR_REPO_ADMIN}:latest\",
+              \"essential\": true,
+              \"portMappings\": [{ \"containerPort\": 7000, \"hostPort\": 7000, \"protocol\": \"tcp\" }]
+            }]" --query 'taskDefinition.taskDefinitionArn' --output text)
 
           STOREFRONT_TASK=$(aws ecs register-task-definition \
             --family storefront-task-def \
@@ -108,16 +89,12 @@ jobs:
             --network-mode awsvpc \
             --cpu "256" --memory "512" \
             --execution-role-arn arn:aws:iam::739275478105:role/ecsTaskExecutionRole \
-            --container-definitions "[
-              {
-                \"name\": \"storefront\",
-                \"image\": \"${ECR_REGISTRY}/${ECR_REPO_STOREFRONT}:latest\",
-                \"essential\": true,
-                \"portMappings\": [
-                  { \"containerPort\": 8000, \"hostPort\": 8000, \"protocol\": \"tcp\" }
-                ]
-              }
-            ]" --query 'taskDefinition.taskDefinitionArn' --output text)
+            --container-definitions "[{
+              \"name\": \"storefront\",
+              \"image\": \"${ECR_REGISTRY}/${ECR_REPO_STOREFRONT}:latest\",
+              \"essential\": true,
+              \"portMappings\": [{ \"containerPort\": 8000, \"hostPort\": 8000, \"protocol\": \"tcp\" }]
+            }]" --query 'taskDefinition.taskDefinitionArn' --output text)
 
           echo "BACKEND_TASK=$BACKEND_TASK" >> $GITHUB_ENV
           echo "ADMIN_TASK=$ADMIN_TASK" >> $GITHUB_ENV
@@ -154,3 +131,4 @@ jobs:
                 --force-new-deployment \
                 --region $AWS_REGION
             fi
+          done
