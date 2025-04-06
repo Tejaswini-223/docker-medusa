@@ -7,6 +7,7 @@ on:
 
 env:
   AWS_REGION: us-east-1
+  ECR_REGISTRY: 739275478105.dkr.ecr.us-east-1.amazonaws.com
   ECR_REPO_BACKEND: backend
   ECR_REPO_ADMIN: admin
   ECR_REPO_STOREFRONT: storefront
@@ -17,62 +18,66 @@ env:
 
 jobs:
   deploy:
-    name: Build and Deploy to ECS
+    name: Build & Deploy Containers
     runs-on: ubuntu-latest
 
     permissions:
-      contents: read
       id-token: write
+      contents: read
 
     steps:
-      - name: Checkout
+      - name: Checkout Source Code
         uses: actions/checkout@v3
 
-      - name: Configure AWS credentials
+      - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
-          role-to-assume: arn:aws:iam::739275478105:role/your-gh-actions-role
+          role-to-assume: arn:aws:iam::739275478105:role/your-gh-actions-role  # Make sure this IAM role is set up properly for OIDC
+          role-session-name: github-actions-session
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Login to ECR
+      - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
 
       - name: Build & Push Backend Image
         run: |
           docker build -t $ECR_REPO_BACKEND ./backend
-          docker tag $ECR_REPO_BACKEND:latest ${{ steps.login-ecr.outputs.registry }}/$ECR_REPO_BACKEND:latest
-          docker push ${{ steps.login-ecr.outputs.registry }}/$ECR_REPO_BACKEND:latest
+          docker tag $ECR_REPO_BACKEND:latest $ECR_REGISTRY/$ECR_REPO_BACKEND:latest
+          docker push $ECR_REGISTRY/$ECR_REPO_BACKEND:latest
 
       - name: Build & Push Admin Image
         run: |
           docker build -t $ECR_REPO_ADMIN ./admin
-          docker tag $ECR_REPO_ADMIN:latest ${{ steps.login-ecr.outputs.registry }}/$ECR_REPO_ADMIN:latest
-          docker push ${{ steps.login-ecr.outputs.registry }}/$ECR_REPO_ADMIN:latest
+          docker tag $ECR_REPO_ADMIN:latest $ECR_REGISTRY/$ECR_REPO_ADMIN:latest
+          docker push $ECR_REGISTRY/$ECR_REPO_ADMIN:latest
 
       - name: Build & Push Storefront Image
         run: |
           docker build -t $ECR_REPO_STOREFRONT ./storefront
-          docker tag $ECR_REPO_STOREFRONT:latest ${{ steps.login-ecr.outputs.registry }}/$ECR_REPO_STOREFRONT:latest
-          docker push ${{ steps.login-ecr.outputs.registry }}/$ECR_REPO_STOREFRONT:latest
+          docker tag $ECR_REPO_STOREFRONT:latest $ECR_REGISTRY/$ECR_REPO_STOREFRONT:latest
+          docker push $ECR_REGISTRY/$ECR_REPO_STOREFRONT:latest
 
-      - name: Deploy Backend to ECS
+      - name: Deploy Backend Service
         run: |
           aws ecs update-service \
             --cluster $ECS_CLUSTER \
             --service $ECS_SERVICE_BACKEND \
-            --force-new-deployment
+            --force-new-deployment \
+            --region $AWS_REGION
 
-      - name: Deploy Admin to ECS
+      - name: Deploy Admin Service
         run: |
           aws ecs update-service \
             --cluster $ECS_CLUSTER \
             --service $ECS_SERVICE_ADMIN \
-            --force-new-deployment
+            --force-new-deployment \
+            --region $AWS_REGION
 
-      - name: Deploy Storefront to ECS
+      - name: Deploy Storefront Service
         run: |
           aws ecs update-service \
             --cluster $ECS_CLUSTER \
             --service $ECS_SERVICE_STOREFRONT \
-            --force-new-deployment
+            --force-new-deployment \
+            --region $AWS_REGION
