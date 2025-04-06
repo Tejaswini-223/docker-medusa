@@ -16,7 +16,7 @@ env:
   ECS_SERVICE_ADMIN: admin-service
   ECS_SERVICE_STOREFRONT: storefront-service
   SUBNETS: subnet-04fd156206a709997,subnet-0eb5ce8c43716be97,subnet-0458b373ada72ad8e,subnet-00bedb1932d937f7b
-  SECURITY_GROUP: medusa-ecs-service-sg
+  SECURITY_GROUP: sg-064b066520ecc7e59
 
 jobs:
   deploy:
@@ -41,80 +41,106 @@ jobs:
       - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v1
 
-      - name: Build & Push Backend Image
+      - name: Build & Push Images
         run: |
           docker build -t $ECR_REPO_BACKEND ./backend
           docker tag $ECR_REPO_BACKEND:latest $ECR_REGISTRY/$ECR_REPO_BACKEND:latest
           docker push $ECR_REGISTRY/$ECR_REPO_BACKEND:latest
 
-      - name: Build & Push Admin Image
-        run: |
           docker build -t $ECR_REPO_ADMIN ./admin
           docker tag $ECR_REPO_ADMIN:latest $ECR_REGISTRY/$ECR_REPO_ADMIN:latest
           docker push $ECR_REGISTRY/$ECR_REPO_ADMIN:latest
 
-      - name: Build & Push Storefront Image
-        run: |
           docker build -t $ECR_REPO_STOREFRONT ./storefront
           docker tag $ECR_REPO_STOREFRONT:latest $ECR_REGISTRY/$ECR_REPO_STOREFRONT:latest
           docker push $ECR_REGISTRY/$ECR_REPO_STOREFRONT:latest
 
-      - name: Deploy Backend Service
+      - name: Register Task Definitions
         run: |
-          aws ecs describe-services \
-            --cluster $ECS_CLUSTER \
-            --services $ECS_SERVICE_BACKEND \
-            --region $AWS_REGION | grep "MISSING" && \
-          aws ecs create-service \
-            --cluster $ECS_CLUSTER \
-            --service-name $ECS_SERVICE_BACKEND \
-            --task-definition backend-task-def \
-            --launch-type FARGATE \
-            --desired-count 1 \
-            --network-configuration "awsvpcConfiguration={subnets=[${{ env.SUBNETS }}],securityGroups=[${{ env.SECURITY_GROUP }}],assignPublicIp=ENABLED}" \
-            --region $AWS_REGION || \
-          aws ecs update-service \
-            --cluster $ECS_CLUSTER \
-            --service $ECS_SERVICE_BACKEND \
-            --force-new-deployment \
-            --region $AWS_REGION
+          BACKEND_TASK=$(aws ecs register-task-definition \
+            --family backend-task-def \
+            --requires-compatibilities FARGATE \
+            --network-mode awsvpc \
+            --cpu "256" --memory "512" \
+            --execution-role-arn arn:aws:iam::739275478105:role/ecsTaskExecutionRole \
+            --container-definitions "[
+              {
+                \"name\": \"backend\",
+                \"image\": \"${ECR_REGISTRY}/${ECR_REPO_BACKEND}:latest\",
+                \"essential\": true,
+                \"portMappings\": [
+                  { \"containerPort\": 9000, \"hostPort\": 9000 }
+                ]
+              }
+            ]" --query 'taskDefinition.taskDefinitionArn' --output text)
 
-      - name: Deploy Admin Service
-        run: |
-          aws ecs describe-services \
-            --cluster $ECS_CLUSTER \
-            --services $ECS_SERVICE_ADMIN \
-            --region $AWS_REGION | grep "MISSING" && \
-          aws ecs create-service \
-            --cluster $ECS_CLUSTER \
-            --service-name $ECS_SERVICE_ADMIN \
-            --task-definition admin-task-def \
-            --launch-type FARGATE \
-            --desired-count 1 \
-            --network-configuration "awsvpcConfiguration={subnets=[${{ env.SUBNETS }}],securityGroups=[${{ env.SECURITY_GROUP }}],assignPublicIp=ENABLED}" \
-            --region $AWS_REGION || \
-          aws ecs update-service \
-            --cluster $ECS_CLUSTER \
-            --service $ECS_SERVICE_ADMIN \
-            --force-new-deployment \
-            --region $AWS_REGION
+          ADMIN_TASK=$(aws ecs register-task-definition \
+            --family admin-task-def \
+            --requires-compatibilities FARGATE \
+            --network-mode awsvpc \
+            --cpu "256" --memory "512" \
+            --execution-role-arn arn:aws:iam::739275478105:role/ecsTaskExecutionRole \
+            --container-definitions "[
+              {
+                \"name\": \"admin\",
+                \"image\": \"${ECR_REGISTRY}/${ECR_REPO_ADMIN}:latest\",
+                \"essential\": true,
+                \"portMappings\": [
+                  { \"containerPort\": 7000, \"hostPort\": 7000 }
+                ]
+              }
+            ]" --query 'taskDefinition.taskDefinitionArn' --output text)
 
-      - name: Deploy Storefront Service
+          STOREFRONT_TASK=$(aws ecs register-task-definition \
+            --family storefront-task-def \
+            --requires-compatibilities FARGATE \
+            --network-mode awsvpc \
+            --cpu "256" --memory "512" \
+            --execution-role-arn arn:aws:iam::739275478105:role/ecsTaskExecutionRole \
+            --container-definitions "[
+              {
+                \"name\": \"storefront\",
+                \"image\": \"${ECR_REGISTRY}/${ECR_REPO_STOREFRONT}:latest\",
+                \"essential\": true,
+                \"portMappings\": [
+                  { \"containerPort\": 8000, \"hostPort\": 8000 }
+                ]
+              }
+            ]" --query 'taskDefinition.taskDefinitionArn' --output text)
+
+          echo "BACKEND_TASK=$BACKEND_TASK" >> $GITHUB_ENV
+          echo "ADMIN_TASK=$ADMIN_TASK" >> $GITHUB_ENV
+          echo "STOREFRONT_TASK=$STOREFRONT_TASK" >> $GITHUB_ENV
+
+      - name: Deploy Services
         run: |
-          aws ecs describe-services \
-            --cluster $ECS_CLUSTER \
-            --services $ECS_SERVICE_STOREFRONT \
-            --region $AWS_REGION | grep "MISSING" && \
-          aws ecs create-service \
-            --cluster $ECS_CLUSTER \
-            --service-name $ECS_SERVICE_STOREFRONT \
-            --task-definition storefront-task-def \
-            --launch-type FARGATE \
-            --desired-count 1 \
-            --network-configuration "awsvpcConfiguration={subnets=[${{ env.SUBNETS }}],securityGroups=[${{ env.SECURITY_GROUP }}],assignPublicIp=ENABLED}" \
-            --region $AWS_REGION || \
-          aws ecs update-service \
-            --cluster $ECS_CLUSTER \
-            --service $ECS_SERVICE_STOREFRONT \
-            --force-new-deployment \
-            --region $AWS_REGION
+          for svc in backend admin storefront; do
+            SERVICE_NAME="${svc}-service"
+            TASK_DEF_VAR="$(echo $svc | tr a-z A-Z)_TASK"
+
+            SERVICE_EXISTS=$(aws ecs describe-services \
+              --cluster $ECS_CLUSTER \
+              --services ${SERVICE_NAME} \
+              --query "failures[?reason=='MISSING']" \
+              --output text)
+
+            if [[ -n "$SERVICE_EXISTS" ]]; then
+              echo "Creating $SERVICE_NAME..."
+              aws ecs create-service \
+                --cluster $ECS_CLUSTER \
+                --service-name ${SERVICE_NAME} \
+                --task-definition ${!TASK_DEF_VAR} \
+                --launch-type FARGATE \
+                --desired-count 1 \
+                --network-configuration "awsvpcConfiguration={subnets=[${SUBNETS}],securityGroups=[${SECURITY_GROUP}],assignPublicIp=ENABLED}" \
+                --region $AWS_REGION
+            else
+              echo "Updating $SERVICE_NAME..."
+              aws ecs update-service \
+                --cluster $ECS_CLUSTER \
+                --service ${SERVICE_NAME} \
+                --task-definition ${!TASK_DEF_VAR} \
+                --force-new-deployment \
+                --region $AWS_REGION
+            fi
+          done
