@@ -15,6 +15,8 @@ env:
   ECS_SERVICE_BACKEND: backend-service
   ECS_SERVICE_ADMIN: admin-service
   ECS_SERVICE_STOREFRONT: storefront-service
+  ECS_SERVICE_POSTGRES: postgres-service
+  ECS_SERVICE_REDIS: redis-service
   SUBNETS: subnet-04fd156206a709997,subnet-0eb5ce8c43716be97,subnet-0458b373ada72ad8e,subnet-00bedb1932d937f7b
   SECURITY_GROUP: sg-064b066520ecc7e59
 
@@ -67,7 +69,15 @@ jobs:
               \"name\": \"backend\",
               \"image\": \"${ECR_REGISTRY}/${ECR_REPO_BACKEND}:latest\",
               \"essential\": true,
-              \"portMappings\": [{ \"containerPort\": 9000, \"hostPort\": 9000, \"protocol\": \"tcp\" }]
+              \"portMappings\": [{\"containerPort\": 9000}],
+              \"environment\": [
+                {\"name\": \"DATABASE_URL\", \"value\": \"postgres://postgres:postgres@postgres:5432/medusa-docker\"},
+                {\"name\": \"REDIS_URL\", \"value\": \"redis://cache\"},
+                {\"name\": \"NODE_ENV\", \"value\": \"development\"},
+                {\"name\": \"JWT_SECRET\", \"value\": \"some_jwt_secret\"},
+                {\"name\": \"COOKIE_SECRET\", \"value\": \"some_cookie_secret\"},
+                {\"name\": \"PORT\", \"value\": \"9000\"}
+              ]
             }]" --query 'taskDefinition.taskDefinitionArn' --output text)
 
           ADMIN_TASK=$(aws ecs register-task-definition \
@@ -80,7 +90,8 @@ jobs:
               \"name\": \"admin\",
               \"image\": \"${ECR_REGISTRY}/${ECR_REPO_ADMIN}:latest\",
               \"essential\": true,
-              \"portMappings\": [{ \"containerPort\": 7000, \"hostPort\": 7000, \"protocol\": \"tcp\" }]
+              \"portMappings\": [{\"containerPort\": 7000}],
+              \"environment\": [{\"name\": \"NODE_OPTIONS\", \"value\": \"--openssl-legacy-provider\"}]
             }]" --query 'taskDefinition.taskDefinitionArn' --output text)
 
           STOREFRONT_TASK=$(aws ecs register-task-definition \
@@ -93,16 +104,49 @@ jobs:
               \"name\": \"storefront\",
               \"image\": \"${ECR_REGISTRY}/${ECR_REPO_STOREFRONT}:latest\",
               \"essential\": true,
-              \"portMappings\": [{ \"containerPort\": 8000, \"hostPort\": 8000, \"protocol\": \"tcp\" }]
+              \"portMappings\": [{\"containerPort\": 8000}]
+            }]" --query 'taskDefinition.taskDefinitionArn' --output text)
+
+          POSTGRES_TASK=$(aws ecs register-task-definition \
+            --family postgres-task-def \
+            --requires-compatibilities FARGATE \
+            --network-mode awsvpc \
+            --cpu "256" --memory "512" \
+            --execution-role-arn arn:aws:iam::739275478105:role/ecsTaskExecutionRole \
+            --container-definitions "[{
+              \"name\": \"postgres\",
+              \"image\": \"postgres:10.4\",
+              \"essential\": true,
+              \"portMappings\": [{\"containerPort\": 5432}],
+              \"environment\": [
+                {\"name\": \"POSTGRES_USER\", \"value\": \"postgres\"},
+                {\"name\": \"POSTGRES_PASSWORD\", \"value\": \"postgres\"},
+                {\"name\": \"POSTGRES_DB\", \"value\": \"medusa-docker\"}
+              ]
+            }]" --query 'taskDefinition.taskDefinitionArn' --output text)
+
+          REDIS_TASK=$(aws ecs register-task-definition \
+            --family redis-task-def \
+            --requires-compatibilities FARGATE \
+            --network-mode awsvpc \
+            --cpu "256" --memory "512" \
+            --execution-role-arn arn:aws:iam::739275478105:role/ecsTaskExecutionRole \
+            --container-definitions "[{
+              \"name\": \"redis\",
+              \"image\": \"redis:latest\",
+              \"essential\": true,
+              \"portMappings\": [{\"containerPort\": 6379}]
             }]" --query 'taskDefinition.taskDefinitionArn' --output text)
 
           echo "BACKEND_TASK=$BACKEND_TASK" >> $GITHUB_ENV
           echo "ADMIN_TASK=$ADMIN_TASK" >> $GITHUB_ENV
           echo "STOREFRONT_TASK=$STOREFRONT_TASK" >> $GITHUB_ENV
+          echo "POSTGRES_TASK=$POSTGRES_TASK" >> $GITHUB_ENV
+          echo "REDIS_TASK=$REDIS_TASK" >> $GITHUB_ENV
 
       - name: Deploy Services
         run: |
-          for svc in backend admin storefront; do
+          for svc in backend admin storefront postgres redis; do
             SERVICE_NAME="${svc}-service"
             TASK_DEF_VAR="$(echo $svc | tr a-z A-Z)_TASK"
 
