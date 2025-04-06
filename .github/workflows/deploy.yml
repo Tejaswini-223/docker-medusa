@@ -1,0 +1,78 @@
+name: Deploy to ECS Fargate
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPO_BACKEND: backend
+  ECR_REPO_ADMIN: admin
+  ECR_REPO_STOREFRONT: storefront
+  ECS_CLUSTER: medusa-cluster
+  ECS_SERVICE_BACKEND: backend-service
+  ECS_SERVICE_ADMIN: admin-service
+  ECS_SERVICE_STOREFRONT: storefront-service
+
+jobs:
+  deploy:
+    name: Build and Deploy to ECS
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: arn:aws:iam::739275478105:role/your-gh-actions-role
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build & Push Backend Image
+        run: |
+          docker build -t $ECR_REPO_BACKEND ./backend
+          docker tag $ECR_REPO_BACKEND:latest ${{ steps.login-ecr.outputs.registry }}/$ECR_REPO_BACKEND:latest
+          docker push ${{ steps.login-ecr.outputs.registry }}/$ECR_REPO_BACKEND:latest
+
+      - name: Build & Push Admin Image
+        run: |
+          docker build -t $ECR_REPO_ADMIN ./admin
+          docker tag $ECR_REPO_ADMIN:latest ${{ steps.login-ecr.outputs.registry }}/$ECR_REPO_ADMIN:latest
+          docker push ${{ steps.login-ecr.outputs.registry }}/$ECR_REPO_ADMIN:latest
+
+      - name: Build & Push Storefront Image
+        run: |
+          docker build -t $ECR_REPO_STOREFRONT ./storefront
+          docker tag $ECR_REPO_STOREFRONT:latest ${{ steps.login-ecr.outputs.registry }}/$ECR_REPO_STOREFRONT:latest
+          docker push ${{ steps.login-ecr.outputs.registry }}/$ECR_REPO_STOREFRONT:latest
+
+      - name: Deploy Backend to ECS
+        run: |
+          aws ecs update-service \
+            --cluster $ECS_CLUSTER \
+            --service $ECS_SERVICE_BACKEND \
+            --force-new-deployment
+
+      - name: Deploy Admin to ECS
+        run: |
+          aws ecs update-service \
+            --cluster $ECS_CLUSTER \
+            --service $ECS_SERVICE_ADMIN \
+            --force-new-deployment
+
+      - name: Deploy Storefront to ECS
+        run: |
+          aws ecs update-service \
+            --cluster $ECS_CLUSTER \
+            --service $ECS_SERVICE_STOREFRONT \
+            --force-new-deployment
