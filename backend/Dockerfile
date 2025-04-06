@@ -4,7 +4,7 @@ WORKDIR /app/medusa
 
 # Copy only package files first to leverage Docker cache
 COPY package.json ./
-COPY package-lock.json ./
+#COPY package-lock.json ./
 
 # Install system & npm dependencies
 RUN apt-get update && \
