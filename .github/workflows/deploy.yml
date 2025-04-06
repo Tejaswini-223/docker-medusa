@@ -15,6 +15,8 @@ env:
   ECS_SERVICE_BACKEND: backend-service
   ECS_SERVICE_ADMIN: admin-service
   ECS_SERVICE_STOREFRONT: storefront-service
+  SUBNETS: subnet-04fd156206a709997,subnet-0eb5ce8c43716be97,subnet-0458b373ada72ad8e,subnet-00bedb1932d937f7b
+  SECURITY_GROUP: medusa-ecs-service-sg
 
 jobs:
   deploy:
@@ -37,7 +39,6 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
-        id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
 
       - name: Build & Push Backend Image
@@ -60,6 +61,18 @@ jobs:
 
       - name: Deploy Backend Service
         run: |
+          aws ecs describe-services \
+            --cluster $ECS_CLUSTER \
+            --services $ECS_SERVICE_BACKEND \
+            --region $AWS_REGION | grep "MISSING" && \
+          aws ecs create-service \
+            --cluster $ECS_CLUSTER \
+            --service-name $ECS_SERVICE_BACKEND \
+            --task-definition backend-task-def \
+            --launch-type FARGATE \
+            --desired-count 1 \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ env.SUBNETS }}],securityGroups=[${{ env.SECURITY_GROUP }}],assignPublicIp=ENABLED}" \
+            --region $AWS_REGION || \
           aws ecs update-service \
             --cluster $ECS_CLUSTER \
             --service $ECS_SERVICE_BACKEND \
@@ -68,6 +81,18 @@ jobs:
 
       - name: Deploy Admin Service
         run: |
+          aws ecs describe-services \
+            --cluster $ECS_CLUSTER \
+            --services $ECS_SERVICE_ADMIN \
+            --region $AWS_REGION | grep "MISSING" && \
+          aws ecs create-service \
+            --cluster $ECS_CLUSTER \
+            --service-name $ECS_SERVICE_ADMIN \
+            --task-definition admin-task-def \
+            --launch-type FARGATE \
+            --desired-count 1 \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ env.SUBNETS }}],securityGroups=[${{ env.SECURITY_GROUP }}],assignPublicIp=ENABLED}" \
+            --region $AWS_REGION || \
           aws ecs update-service \
             --cluster $ECS_CLUSTER \
             --service $ECS_SERVICE_ADMIN \
@@ -76,6 +101,18 @@ jobs:
 
       - name: Deploy Storefront Service
         run: |
+          aws ecs describe-services \
+            --cluster $ECS_CLUSTER \
+            --services $ECS_SERVICE_STOREFRONT \
+            --region $AWS_REGION | grep "MISSING" && \
+          aws ecs create-service \
+            --cluster $ECS_CLUSTER \
+            --service-name $ECS_SERVICE_STOREFRONT \
+            --task-definition storefront-task-def \
+            --launch-type FARGATE \
+            --desired-count 1 \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ env.SUBNETS }}],securityGroups=[${{ env.SECURITY_GROUP }}],assignPublicIp=ENABLED}" \
+            --region $AWS_REGION || \
           aws ecs update-service \
             --cluster $ECS_CLUSTER \
             --service $ECS_SERVICE_STOREFRONT \
