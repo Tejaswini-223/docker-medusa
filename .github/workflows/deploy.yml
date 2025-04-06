@@ -69,7 +69,7 @@ jobs:
                 \"image\": \"${ECR_REGISTRY}/${ECR_REPO_BACKEND}:latest\",
                 \"essential\": true,
                 \"portMappings\": [
-                  { \"containerPort\": 9000, \"hostPort\": 9000 }
+                  { \"containerPort\": 9000, \"hostPort\": 9000, \"protocol\": \"tcp\" }
                 ]
               }
             ]" --query 'taskDefinition.taskDefinitionArn' --output text)
@@ -86,7 +86,7 @@ jobs:
                 \"image\": \"${ECR_REGISTRY}/${ECR_REPO_ADMIN}:latest\",
                 \"essential\": true,
                 \"portMappings\": [
-                  { \"containerPort\": 7000, \"hostPort\": 7000 }
+                  { \"containerPort\": 7000, \"hostPort\": 7000, \"protocol\": \"tcp\" }
                 ]
               }
             ]" --query 'taskDefinition.taskDefinitionArn' --output text)
@@ -103,7 +103,7 @@ jobs:
                 \"image\": \"${ECR_REGISTRY}/${ECR_REPO_STOREFRONT}:latest\",
                 \"essential\": true,
                 \"portMappings\": [
-                  { \"containerPort\": 8000, \"hostPort\": 8000 }
+                  { \"containerPort\": 8000, \"hostPort\": 8000, \"protocol\": \"tcp\" }
                 ]
               }
             ]" --query 'taskDefinition.taskDefinitionArn' --output text)
@@ -143,4 +143,3 @@ jobs:
                 --force-new-deployment \
                 --region $AWS_REGION
             fi
-          done
